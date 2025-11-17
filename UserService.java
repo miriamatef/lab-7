@@ -1,88 +1,235 @@
-package Lab6;
-import com.google.gson.*;
-import java.io.IOException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.Optional;
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ */
+package lab7.isa;
 
-public class UserService {
-    private final UsersJsonManager jsonManager;
-    private final Gson gson;
-    private User currentUser = null;
+import org.json.*;
+import java.util.ArrayList;
+import java.util.List;
 
-    public UserService(UsersJsonManager jsonManager) {
-        this.jsonManager = jsonManager;
-        this.gson = new GsonBuilder().create();
-    }
-
-    public static String sha256Hex(String input) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(input.getBytes());
-            StringBuilder sb = new StringBuilder();
-            for (byte b : digest) sb.append(String.format("%02x", b & 0xff));
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
+public class Student {
+    private JSONObject studentData;
+    
+    // CHANGED - Constructor takes JSONObject (matches database pattern)
+    public Student(JSONObject studentData) {
+        this.studentData = studentData;
+        // Ensure required arrays exist
+        if (!studentData.has("enrolledCourses")) {
+            studentData.put("enrolledCourses", new JSONArray());
+        }
+        if (!studentData.has("progress")) {
+            studentData.put("progress", new JSONArray());
         }
     }
-
-    public synchronized Student signupStudent(String username, String email, String password) throws IOException {
-        validateEmailFormat(email);
-        if (jsonManager.emailExists(email)) throw new IllegalArgumentException("Email already registered");
-        String id = jsonManager.generateUniqueUserId();
-        String hash = sha256Hex(password);
-        Student s = new Student(id, username, email, hash);
-
-        JsonObject obj = (JsonObject) gson.toJsonTree(s);
-        jsonManager.addUser(obj);
-        return s;
+    
+    // CHANGED - Create new student from basic info
+    public Student(String userId, String username, String email, String passwordHash) {
+        this.studentData = new JSONObject();
+        studentData.put("id", userId);
+        studentData.put("role", "student");
+        studentData.put("username", username);
+        studentData.put("email", email);
+        studentData.put("password", passwordHash);
+        studentData.put("enrolledCourses", new JSONArray());
+        studentData.put("progress", new JSONArray());
     }
-
-    public synchronized Instructor signupInstructor(String username, String email, String password) throws IOException {
-        validateEmailFormat(email);
-        if (jsonManager.emailExists(email)) throw new IllegalArgumentException("Email already registered");
-        String id = jsonManager.generateUniqueUserId();
-        String hash = sha256Hex(password);
-        Instructor ins = new Instructor(id, username, email, hash);
-
-        JsonObject obj = (JsonObject) gson.toJsonTree(ins);
-        jsonManager.addUser(obj);
-        return ins;
+    
+    // CHANGED - Default constructor
+    public Student() {
+        this.studentData = new JSONObject();
+        studentData.put("role", "student");
+        studentData.put("enrolledCourses", new JSONArray());
+        studentData.put("progress", new JSONArray());
     }
-
-    public synchronized User login(String email, String password) {
-        Optional<JsonObject> optional = jsonManager.findByEmail(email);
-        if (!optional.isPresent()) throw new IllegalArgumentException("Email not found");
-        JsonObject obj = optional.get();
-        String storedHash = obj.get("passwordHash").getAsString();
-        String role = obj.get("role").getAsString();
-
-        String hash = sha256Hex(password);
-        if (!hash.equals(storedHash)) throw new IllegalArgumentException("Incorrect password");
-
-        // construct proper subclass
-        if ("student".equalsIgnoreCase(role)) {
-            Student s = gson.fromJson(obj, Student.class);
-            currentUser = s;
-            return s;
-        } else {
-            Instructor ins = gson.fromJson(obj, Instructor.class);
-            currentUser = ins;
-            return ins;
+    
+    // CHANGED - Get the underlying JSONObject (for saving to database)
+    public JSONObject toJSON() {
+        return studentData;
+    }
+    
+    // Getters - CHANGED to read from JSONObject
+    public String getUserId() {
+        return studentData.optString("id", "");
+    }
+    
+    public String getUsername() {
+        return studentData.optString("username", "");
+    }
+    
+    public String getEmail() {
+        return studentData.optString("email", "");
+    }
+    
+    public String getPasswordHash() {
+        return studentData.optString("password", "");
+    }
+    
+    public String getRole() {
+        return studentData.optString("role", "student");
+    }
+    
+    // CHANGED - Returns List<Integer> to match course IDs in database
+    public List<Integer> getEnrolledCourses() {
+        List<Integer> courses = new ArrayList<>();
+        JSONArray coursesArray = studentData.optJSONArray("enrolledCourses");
+        if (coursesArray != null) {
+            for (Object obj : coursesArray) {
+                if (obj instanceof Integer) {
+                    courses.add((Integer) obj);
+                } else if (obj instanceof String) {
+                    try {
+                        courses.add(Integer.parseInt((String) obj));
+                    } catch (NumberFormatException e) {
+                        // Skip invalid entries
+                    }
+                }
+            }
+        }
+        return courses;
+    }
+    
+    // CHANGED - Returns List<Progress> objects from JSON
+    public List<Progress> getProgress() {
+        List<Progress> progressList = new ArrayList<>();
+        JSONArray progressArray = studentData.optJSONArray("progress");
+        if (progressArray != null) {
+            for (Object obj : progressArray) {
+                if (obj instanceof JSONObject) {
+                    progressList.add(new Progress((JSONObject) obj));
+                }
+            }
+        }
+        return progressList;
+    }
+    
+    // Setters - CHANGED to write to JSONObject
+    public void setUsername(String username) {
+        studentData.put("username", username);
+    }
+    
+    public void setEmail(String email) {
+        studentData.put("email", email);
+    }
+    
+    public void setPasswordHash(String passwordHash) {
+        studentData.put("password", passwordHash);
+    }
+    
+    // CHANGED - Accepts List<Integer> to match course IDs
+    public void setEnrolledCourses(List<Integer> enrolledCourses) {
+        JSONArray coursesArray = new JSONArray();
+        for (Integer courseId : enrolledCourses) {
+            coursesArray.put(courseId);
+        }
+        studentData.put("enrolledCourses", coursesArray);
+    }
+    
+    // CHANGED - Accepts List<Progress> objects
+    public void setProgress(List<Progress> progress) {
+        JSONArray progressArray = new JSONArray();
+        for (Progress p : progress) {
+            progressArray.put(p.toJSON());
+        }
+        studentData.put("progress", progressArray);
+    }
+    
+    // CHANGED - Accepts int courseId to match database
+    public void enrollCourse(int courseId) {
+        JSONArray coursesArray = studentData.optJSONArray("enrolledCourses");
+        if (coursesArray == null) {
+            coursesArray = new JSONArray();
+            studentData.put("enrolledCourses", coursesArray);
+        }
+        
+        // Check if already enrolled
+        for (Object obj : coursesArray) {
+            if (obj instanceof Integer && (Integer) obj == courseId) {
+                return; // Already enrolled
+            }
+        }
+        
+        // Add to enrolled courses
+        coursesArray.put(courseId);
+        
+        // Create progress entry
+        JSONArray progressArray = studentData.optJSONArray("progress");
+        if (progressArray == null) {
+            progressArray = new JSONArray();
+            studentData.put("progress", progressArray);
+        }
+        
+        // Check if progress already exists
+        boolean progressExists = false;
+        for (Object obj : progressArray) {
+            if (obj instanceof JSONObject) {
+                JSONObject prog = (JSONObject) obj;
+                if (prog.optInt("courseId", -1) == courseId) {
+                    progressExists = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!progressExists) {
+            Progress newProgress = new Progress(courseId);
+            progressArray.put(newProgress.toJSON());
         }
     }
-
-    public synchronized void logout() {
-        currentUser = null;
+    
+    // CHANGED - Accepts int courseId to match database
+    public Progress getProgressForCourse(int courseId) {
+        JSONArray progressArray = studentData.optJSONArray("progress");
+        if (progressArray == null) return null;
+        
+        for (Object obj : progressArray) {
+            if (obj instanceof JSONObject) {
+                JSONObject prog = (JSONObject) obj;
+                if (prog.optInt("courseId", -1) == courseId) {
+                    return new Progress(prog);
+                }
+            }
+        }
+        return null;
     }
-
-    public synchronized User getCurrentUser() {
-        return currentUser;
+    
+    // ADDED - Unenroll from a course
+    public void unenrollCourse(int courseId) {
+        // Remove from enrolled courses
+        JSONArray coursesArray = studentData.optJSONArray("enrolledCourses");
+        if (coursesArray != null) {
+            JSONArray newCourses = new JSONArray();
+            for (Object obj : coursesArray) {
+                if (!(obj instanceof Integer && (Integer) obj == courseId)) {
+                    newCourses.put(obj);
+                }
+            }
+            studentData.put("enrolledCourses", newCourses);
+        }
+        
+        // Remove progress for this course
+        JSONArray progressArray = studentData.optJSONArray("progress");
+        if (progressArray != null) {
+            JSONArray newProgress = new JSONArray();
+            for (Object obj : progressArray) {
+                if (obj instanceof JSONObject) {
+                    JSONObject prog = (JSONObject) obj;
+                    if (prog.optInt("courseId", -1) != courseId) {
+                        newProgress.put(prog);
+                    }
+                }
+            }
+            studentData.put("progress", newProgress);
+        }
     }
-
-    private void validateEmailFormat(String email) {
-        if (email == null || !email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$"))
-            throw new IllegalArgumentException("Invalid email format");
+    
+    // ADDED - Check if enrolled in a course
+    public boolean isEnrolledIn(int courseId) {
+        List<Integer> enrolled = getEnrolledCourses();
+        return enrolled.contains(courseId);
+    }
+    
+    @Override
+    public String toString() {
+        return getUsername() + " (Student)";
     }
 }
