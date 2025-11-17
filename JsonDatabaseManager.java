@@ -1,122 +1,125 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
-package storage;
+package lab7.isa;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.reflect.TypeToken;
-import models.Course;
-import models.User;
-import models.Student;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.json.JSONTokener;
 
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.nio.file.Files;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class JsonDatabaseManager {
-
+    private static JsonDatabaseManager instance;
     private static final Logger logger = Logger.getLogger(JsonDatabaseManager.class.getName());
 
-    private final File usersFile;
-    private final File coursesFile;
-    private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private final File usersFile = new File("users.json");
+    private final File coursesFile = new File("courses.json");
 
-    public JsonDatabaseManager(String usersPath, String coursesPath) {
-        this.usersFile = new File(usersPath);
-        this.coursesFile = new File(coursesPath);
-        ensureExists(usersFile, "[]");
-        ensureExists(coursesFile, "[]");
+    private JsonDatabaseManager() {
+        ensureFile(usersFile);
+        ensureFile(coursesFile);
     }
 
-    private void ensureExists(File f, String defaultContent) {
+    // Singleton
+    public static synchronized JsonDatabaseManager getInstance() {
+        if (instance == null) instance = new JsonDatabaseManager();
+        return instance;
+    }
+
+    // Ensure file exists; if not, create with empty JSON array
+    private void ensureFile(File f) {
         try {
             if (!f.exists()) {
-                try (FileWriter fw = new FileWriter(f)) {
-                    fw.write(defaultContent);
+                try (FileWriter w = new FileWriter(f)) {
+                    w.write("[]");
                 }
             }
         } catch (IOException e) {
             logger.log(Level.SEVERE, "Failed to create file: " + f.getName(), e);
-            throw new RuntimeException("Failed to create file: " + f.getName(), e);
         }
     }
 
-    public List<User> loadUsers() {
-        try (FileReader fr = new FileReader(usersFile)) {
-            Type generic = new TypeToken<List<Object>>() {}.getType();
-            List<Object> raw = gson.fromJson(fr, generic);
-            List<User> users = new ArrayList<>();
+    // ===== READ METHODS =====
+    public synchronized JSONArray readUsers() {
+        return readArrayFromFile(usersFile);
+    }
 
-            if (raw != null) {
-                for (Object o : raw) {
-                    String json = gson.toJson(o);
-                    com.google.gson.JsonObject jo = gson.fromJson(json, com.google.gson.JsonObject.class);
-                    String role = jo.has("role") ? jo.get("role").getAsString() : "STUDENT";
+    public synchronized JSONArray readCourses() {
+        return readArrayFromFile(coursesFile);
+    }
 
-                    if ("STUDENT".equalsIgnoreCase(role)) {
-                        Student s = gson.fromJson(json, Student.class);
-                        users.add(s);
-                    } else {
-                        User u = gson.fromJson(json, User.class); // other roles
-                        users.add(u);
-                    }
+    private JSONArray readArrayFromFile(File f) {
+        if (!f.exists()) return new JSONArray();
+        try {
+            if (f.length() == 0) return new JSONArray();
+            try (FileReader reader = new FileReader(f)) {
+                return new JSONArray(new JSONTokener(reader));
+            }
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error reading " + f.getName(), e);
+            return new JSONArray();
+        }
+    }
+
+    // ===== WRITE METHODS =====
+    public synchronized void writeUsers(JSONArray users) {
+        writeArrayToFile(usersFile, users);
+    }
+
+    public synchronized void writeCourses(JSONArray courses) {
+        writeArrayToFile(coursesFile, courses);
+    }
+
+    private void writeArrayToFile(File f, JSONArray arr) {
+        try (FileWriter fw = new FileWriter(f)) {
+            fw.write(arr.toString(4)); // pretty-print JSON
+        } catch (IOException e) {
+            logger.log(Level.SEVERE, "Error writing " + f.getName(), e);
+        }
+    }
+
+    // ===== ID GENERATORS =====
+    // Generate unique user ID like U1001, U1002, ...
+    public synchronized String generateUserId() {
+        JSONArray users = readUsers();
+        String id;
+        boolean ok;
+        do {
+            id = "U" + (1000 + (int) (Math.random() * 9000));
+            ok = true;
+            for (Object o : users) {
+                JSONObject u = (JSONObject) o;
+                if (id.equals(u.optString("id", ""))) {
+                    ok = false;
+                    break;
                 }
             }
+        } while (!ok);
+        return id;
+    }
 
-            return users;
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Failed to load users from JSON", e);
-            return new ArrayList<>(); // return empty list if failed
+    // Generate numeric course ID
+    public synchronized int generateCourseId() {
+        JSONArray courses = readCourses();
+        int max = 0;
+        for (Object o : courses) {
+            JSONObject c = (JSONObject) o;
+            max = Math.max(max, c.optInt("id", 0));
         }
+        return max + 1;
     }
 
-    public void saveUsers(List<User> users) {
-        try (FileWriter fw = new FileWriter(usersFile)) {
-            gson.toJson(users, fw);
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Failed to save users to JSON", e);
-            throw new RuntimeException("Failed to save users to JSON", e);
+    // Generate numeric lesson ID from lessons array
+    public synchronized int generateLessonId(JSONArray lessons) {
+        int max = 0;
+        for (Object o : lessons) {
+            JSONObject l = (JSONObject) o;
+            max = Math.max(max, l.optInt("id", 0));
         }
-    }
-
-    public List<Course> loadCourses() {
-        try (FileReader fr = new FileReader(coursesFile)) {
-            Type listType = new TypeToken<ArrayList<Course>>() {}.getType();
-            List<Course> courses = gson.fromJson(fr, listType);
-            return courses != null ? courses : new ArrayList<>();
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Failed to load courses from JSON", e);
-            return new ArrayList<>();
-        }
-    }
-
-    public void saveCourses(List<Course> courses) {
-        try (FileWriter fw = new FileWriter(coursesFile)) {
-            gson.toJson(courses, fw);
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, "Failed to save courses to JSON", e);
-            throw new RuntimeException("Failed to save courses to JSON", e);
-        }
-    }
-
-    public Optional<Course> findCourseById(String courseId) {
-        return loadCourses().stream()
-                .filter(c -> c.getCourseId().equals(courseId))
-                .findFirst();
-    }
-
-    public Optional<User> findUserById(String userId) {
-        return loadUsers().stream()
-                .filter(u -> u.getUserId().equals(userId))
-                .findFirst();
+        return max + 1;
     }
 }
