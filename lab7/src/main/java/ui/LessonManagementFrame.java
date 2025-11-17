@@ -2,15 +2,13 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
-package ui;
+
+
+package lab7.isa;
 
 import javax.swing.*;
 import java.awt.*;
 import java.util.List;
-import model.Course;
-import model.Lesson;
-import service.CourseService;
-import database.JsonDatabaseManager;
 
 
 /**
@@ -20,83 +18,57 @@ import database.JsonDatabaseManager;
 
 
 public class LessonManagementFrame extends JFrame {
-    private Course course;
-    private CourseService courseService;
-
-    private DefaultListModel<Lesson> lessonListModel;
-    private JList<Lesson> lessonList;
-    private JButton addButton, editButton, deleteButton;
+    private final Course course;
+    private final LessonService lessonService;
+    private final DefaultListModel<Lesson> lm;
+    private final JList<Lesson> lessonJList;
 
     public LessonManagementFrame(Course course) {
+        super("Manage Lessons - " + course.getTitle());
         this.course = course;
-        this.courseService = new CourseService(JsonDatabaseManager.getInstance());
+        this.lessonService = new LessonService(JsonDatabaseManager.getInstance());
+        setSize(600,600); setLocationRelativeTo(null); setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
-        setTitle("Manage Lessons for Course: " + course.getTitle());
-        setSize(500, 400);
-        setLocationRelativeTo(null);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-
-        initUI();
+        lm = new DefaultListModel<>();
+        lessonJList = new JList<>(lm);
         loadLessons();
 
+        JButton add = new JButton("Add"); JButton edit = new JButton("Edit"); JButton delete = new JButton("Delete");
+
+        add.addActionListener(e -> new AddLessonFrame(course, lessonService, this));
+        edit.addActionListener(e -> {
+            Lesson sel = lessonJList.getSelectedValue();
+            if (sel == null) { JOptionPane.showMessageDialog(this,"Select"); return; }
+            new EditLessonFrame(course, sel, lessonService, this);
+        });
+        delete.addActionListener(e -> {
+            Lesson sel = lessonJList.getSelectedValue();
+            if (sel == null) { JOptionPane.showMessageDialog(this,"Select"); return; }
+            if (JOptionPane.showConfirmDialog(this, "Delete "+sel.getTitle()+"?","Confirm",JOptionPane.YES_NO_OPTION)==JOptionPane.YES_OPTION) {
+                boolean ok = lessonService.deleteLesson(course.getCourseId(), sel.getLessonId());
+                if (ok) { JOptionPane.showMessageDialog(this,"Deleted"); refreshList(); } else JOptionPane.showMessageDialog(this,"Delete failed");
+            }
+        });
+
+        JPanel bottom = new JPanel(); bottom.add(add); bottom.add(edit); bottom.add(delete);
+        add(new JScrollPane(lessonJList), BorderLayout.CENTER);
+        add(bottom, BorderLayout.SOUTH);
         setVisible(true);
     }
 
-    private void initUI() {
-        lessonListModel = new DefaultListModel<>();
-        lessonList = new JList<>(lessonListModel);
-        lessonList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-
-        addButton = new JButton("Add Lesson");
-        editButton = new JButton("Edit Lesson");
-        deleteButton = new JButton("Delete Lesson");
-
-        addButton.addActionListener(e -> new AddLessonFrame(course, courseService, this));
-        editButton.addActionListener(e -> {
-            Lesson selected = lessonList.getSelectedValue();
-            if (selected == null) {
-                JOptionPane.showMessageDialog(this, "Select a lesson");
-                return;
-            }
-            new EditLessonFrame(course, selected, courseService, this);
-        });
-        deleteButton.addActionListener(e -> deleteSelectedLesson());
-
-        JPanel buttonPanel = new JPanel();
-        buttonPanel.add(addButton);
-        buttonPanel.add(editButton);
-        buttonPanel.add(deleteButton);
-
-        add(new JScrollPane(lessonList), BorderLayout.CENTER);
-        add(buttonPanel, BorderLayout.SOUTH);
-    }
-
-    public void loadLessons() {
-        lessonListModel.clear();
-        List<Lesson> lessons = course.getLessons();
-        for (Lesson l : lessons) {
-            lessonListModel.addElement(l);
-        }
-    }
-
-    private void deleteSelectedLesson() {
-        Lesson selected = lessonList.getSelectedValue();
-        if (selected == null) {
-            JOptionPane.showMessageDialog(this, "Select a lesson to delete");
-            return;
-        }
-
-        boolean ok = courseService.deleteLesson(course.getCourseId(), selected.getLessonId());
-        if (ok) {
-            course.getLessons().remove(selected);
-            loadLessons();
-            JOptionPane.showMessageDialog(this, "Lesson deleted!");
-        } else {
-            JOptionPane.showMessageDialog(this, "Error deleting lesson");
-        }
+    void loadLessons() {
+        lm.clear();
+        for (Lesson l : course.getLessons()) lm.addElement(l);
     }
 
     public void refreshList() {
-        loadLessons();
+        // reload course data from DB to reflect changes
+        CourseService cs = new CourseService(JsonDatabaseManager.getInstance());
+        Course fresh = null;
+        for (Course c : cs.getAllCourses()) if (c.getCourseId() == course.getCourseId()) { fresh = c; break; }
+        if (fresh != null) {
+            course.setLessons(fresh.getLessons());
+            loadLessons();
+        }
     }
 }
