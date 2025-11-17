@@ -2,15 +2,12 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
-package ui;
+package lab7.isa;
 
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
-import model.Course;
-import model.Lesson;
-import service.CourseService;
 
 /**
  *
@@ -18,83 +15,48 @@ import service.CourseService;
  */
 
 public class EditLessonFrame extends JFrame {
-    private JTextField titleField;
-    private JTextArea contentArea;
-    private JTextField resourcesField;
+    private final Course course;
+    private final Lesson lesson;
+    private final LessonService svc;
+    private final LessonManagementFrame parent;
+    private JTextField tfTitle;
+    private JTextArea taContent;
+    private JTextField tfResources;
 
-    private Course course;
-    private Lesson lesson;
-    private CourseService courseService;
-    private LessonManagementFrame parent;
+    public EditLessonFrame(Course course, Lesson lesson, LessonService svc, LessonManagementFrame parent) {
+        super("Edit Lesson");
+        this.course = course; this.lesson = lesson; this.svc = svc; this.parent = parent;
+        init();
+    }
 
-    public EditLessonFrame(Course course, Lesson lesson, CourseService courseService, LessonManagementFrame parent) {
-        this.course = course;
-        this.lesson = lesson;
-        this.courseService = courseService;
-        this.parent = parent;
+    private void init() {
+        setSize(420,420); setLocationRelativeTo(null); setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        tfTitle = new JTextField(lesson.getTitle(), 30);
+        taContent = new JTextArea(lesson.getContent(),6,30);
+        tfResources = new JTextField(String.join(", ", lesson.getResources()), 30);
+        JButton btn = new JButton("Save");
 
-        setTitle("Edit Lesson (ID: " + lesson.getLessonId() + ")");
-        setSize(400, 350);
-        setLocationRelativeTo(null);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        btn.addActionListener(e -> {
+            String t = tfTitle.getText().trim();
+            if (t.isEmpty()) { JOptionPane.showMessageDialog(this,"Title required"); return; }
+            String content = taContent.getText().trim();
+            List<String> res = new ArrayList<>();
+            if (!tfResources.getText().trim().isEmpty()) {
+                for (String s : tfResources.getText().split(",")) res.add(s.trim());
+            }
+            boolean ok = svc.editLesson(course.getCourseId(), lesson.getLessonId(), t, content, res);
+            if (ok) {
+                JOptionPane.showMessageDialog(this,"Saved");
+                parent.refreshList(); dispose();
+            } else JOptionPane.showMessageDialog(this,"Save failed");
+        });
 
-        initUI();
+        JPanel p = new JPanel(new BorderLayout());
+        JPanel top = new JPanel(); top.add(new JLabel("Title:")); top.add(tfTitle);
+        p.add(top, BorderLayout.NORTH); p.add(new JScrollPane(taContent), BorderLayout.CENTER);
+        JPanel bot = new JPanel(); bot.add(new JLabel("Resources:")); bot.add(tfResources); bot.add(btn);
+        p.add(bot, BorderLayout.SOUTH);
+        add(p);
         setVisible(true);
-    }
-
-    private void initUI() {
-        JPanel form = new JPanel(new GridLayout(6, 1, 10, 10));
-
-        titleField = new JTextField(lesson.getTitle());
-        contentArea = new JTextArea(lesson.getContent(), 5, 20);
-        contentArea.setLineWrap(true);
-        contentArea.setWrapStyleWord(true);
-
-        StringBuilder sb = new StringBuilder();
-        if (lesson.getResources() != null) {
-            for (String r : lesson.getResources()) sb.append(r).append(", ");
-        }
-        resourcesField = new JTextField(sb.toString());
-
-        form.add(new JLabel("Lesson Title:"));
-        form.add(titleField);
-        form.add(new JLabel("Content:"));
-        form.add(new JScrollPane(contentArea));
-        form.add(new JLabel("Resources (comma separated):"));
-        form.add(resourcesField);
-
-        JButton saveBtn = new JButton("Save");
-        saveBtn.addActionListener(e -> saveLessonEdit());
-
-        add(form, BorderLayout.CENTER);
-        add(saveBtn, BorderLayout.SOUTH);
-    }
-
-    private void saveLessonEdit() {
-        String newTitle = titleField.getText().trim();
-        String newContent = contentArea.getText().trim();
-        String resText = resourcesField.getText().trim();
-
-        if (newTitle.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Lesson title cannot be empty");
-            return;
-        }
-
-        List<String> resources = new ArrayList<>();
-        if (!resText.isEmpty()) {
-            for (String r : resText.split(",")) resources.add(r.trim());
-        }
-
-        boolean ok = courseService.editLesson(course.getCourseId(), lesson.getLessonId(), newTitle, newContent, resources);
-        if (ok) {
-            lesson.setTitle(newTitle);
-            lesson.setContent(newContent);
-            lesson.setResources(resources);
-            parent.refreshList();
-            JOptionPane.showMessageDialog(this, "Lesson updated!");
-            dispose();
-        } else {
-            JOptionPane.showMessageDialog(this, "Error updating lesson");
-        }
     }
 }
