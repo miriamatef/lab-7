@@ -61,7 +61,7 @@ public class UserService {
         String hash = sha256Hex(password);
         if (!hash.equals(storedHash)) throw new IllegalArgumentException("Incorrect password");
 
-        // construct proper subclass
+
         if ("student".equalsIgnoreCase(role)) {
             Student s = gson.fromJson(obj, Student.class);
             currentUser = s;
@@ -85,4 +85,5 @@ public class UserService {
         if (email == null || !email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$"))
             throw new IllegalArgumentException("Invalid email format");
     }
+
 }
