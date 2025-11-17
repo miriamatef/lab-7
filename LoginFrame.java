@@ -51,12 +51,7 @@ public class LoginFrame extends JFrame {
                 JOptionPane.showMessageDialog(this, "Login successful. Role: " + user.getRole()
                         + "\nUsername: " + user.getUsername(), "Welcome", JOptionPane.INFORMATION_MESSAGE);
 
-                // TODO: When dashboards are ready, replace this with:
-                // if ("student".equals(user.getRole())) {
-                //     new StudentDashboardFrame((Student) user, userService).setVisible(true);
-                // } else {
-                //     new InstructorDashboardFrame((Instructor) user, userService).setVisible(true);
-                // }
+              
                 
                 // For now, just close the login window after successful login
                 dispose();
@@ -75,4 +70,5 @@ public class LoginFrame extends JFrame {
 
         add(panel);
     }
+
 }
