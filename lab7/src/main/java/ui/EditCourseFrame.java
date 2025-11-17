@@ -2,12 +2,10 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
-package ui;
+
+package lab7.isa;
 
 import javax.swing.*;
-import service.CourseService;
-import database.JsonDatabaseManager;
-import model.Course;
 import java.awt.*;
 
 /**
@@ -16,66 +14,38 @@ import java.awt.*;
  */
 
 public class EditCourseFrame extends JFrame {
-    private JTextField titleField;
-    private JTextArea descriptionArea;
-    private JButton saveButton;
-    private Course course;
-    private CourseService courseService;
-    private InstructorDashboardFrame parent;
+    private final Course course;
+    private final InstructorDashboardFrame parent;
+    private final CourseService service;
+    private JTextField tfTitle;
+    private JTextArea taDesc;
 
     public EditCourseFrame(Course course, InstructorDashboardFrame parent) {
+        super("Edit Course");
         this.course = course;
         this.parent = parent;
-        this.courseService = new CourseService(JsonDatabaseManager.getInstance());
+        this.service = new CourseService(JsonDatabaseManager.getInstance());
+        init();
+    }
 
-        setTitle("Edit Course (ID: " + course.getCourseId() + ")");
-        setSize(400, 350);
-        setLocationRelativeTo(null);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+    private void init() {
+        setSize(420,300); setLocationRelativeTo(null); setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        tfTitle = new JTextField(course.getTitle(), 30);
+        taDesc = new JTextArea(course.getDescription(),6,30);
+        JButton btn = new JButton("Save");
 
-        initUI();
+        btn.addActionListener(e -> {
+            if (tfTitle.getText().trim().isEmpty()) { JOptionPane.showMessageDialog(this, "Title required"); return; }
+            boolean ok = service.editCourse(course.getCourseId(), tfTitle.getText().trim(), taDesc.getText().trim());
+            if (ok) { JOptionPane.showMessageDialog(this, "Updated"); parent.loadCourses(); dispose(); }
+            else JOptionPane.showMessageDialog(this, "Update failed");
+        });
+
+        JPanel p = new JPanel(new BorderLayout());
+        JPanel top = new JPanel(); top.add(new JLabel("Title:")); top.add(tfTitle);
+        p.add(top, BorderLayout.NORTH); p.add(new JScrollPane(taDesc), BorderLayout.CENTER);
+        p.add(btn, BorderLayout.SOUTH);
+        add(p);
         setVisible(true);
-    }
-
-    private void initUI() {
-        JPanel panel = new JPanel(new BorderLayout());
-        JPanel form = new JPanel(new GridLayout(4, 1, 10, 10));
-
-        titleField = new JTextField(course.getTitle());
-        descriptionArea = new JTextArea(course.getDescription(), 5, 20);
-        descriptionArea.setLineWrap(true);
-        descriptionArea.setWrapStyleWord(true);
-
-        form.add(new JLabel("Course Title:"));
-        form.add(titleField);
-        form.add(new JLabel("Description:"));
-        form.add(new JScrollPane(descriptionArea));
-
-        saveButton = new JButton("Save Changes");
-        saveButton.addActionListener(e -> saveEdit());
-
-        panel.add(form, BorderLayout.CENTER);
-        panel.add(saveButton, BorderLayout.SOUTH);
-
-        add(panel);
-    }
-
-    private void saveEdit() {
-        String newTitle = titleField.getText().trim();
-        String newDesc = descriptionArea.getText().trim();
-
-        if (newTitle.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Title cannot be empty");
-            return;
-        }
-
-        boolean ok = courseService.editCourse(course.getCourseId(), newTitle, newDesc);
-        if (ok) {
-            JOptionPane.showMessageDialog(this, "Course updated!");
-            parent.loadCourses();
-            dispose();
-        } else {
-            JOptionPane.showMessageDialog(this, "Error updating course");
-        }
     }
 }
