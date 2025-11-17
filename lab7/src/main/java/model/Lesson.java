@@ -20,39 +20,44 @@ public class Lesson {
         this.lessonId = lessonId;
         this.title = title;
         this.content = content;
-        this.resources = resources;
+        this.resources = resources == null ? new ArrayList<>() : resources;
     }
 
-    public int getLessonId() {
-        return lessonId;
+    public int getLessonId() { 
+        return lessonId; 
+    }
+    
+    public void setLessonId(int lessonId) { 
+        this.lessonId = lessonId; 
+    }
+    
+    public String getTitle() { 
+        return title; 
+    }
+    
+    public void setTitle(String title) { 
+        this.title = title; 
+    }
+    
+    public String getContent() { 
+        return content; 
+    }
+    
+    public void setContent(String content) { 
+        this.content = content; 
+    }
+    
+    public List<String> getResources() { 
+        return resources; 
+    }
+    
+    public void setResources(List<String> resources) { 
+        this.resources = resources; 
     }
 
-    public void setLessonId(int lessonId) {
-        this.lessonId = lessonId;
+    @Override
+    public String toString() { 
+        return title; 
     }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public List<String> getResources() {
-        return resources;
-    }
-
-    public void setResources(List<String> resources) {
-        this.resources = resources;
-    }
-
 }
+
