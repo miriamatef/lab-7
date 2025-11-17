@@ -2,82 +2,95 @@
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
-package ui;
+package lab7.isa;
 
 import javax.swing.*;
-import service.CourseService;
-import database.JsonDatabaseManager;
-import model.Course;
+import java.awt.*;
 import java.util.List;
+
 
 /**
  *
  * @author Miriam
  */
 
-
 public class InstructorDashboardFrame extends JFrame {
-    private CourseService courseService;
-    private JList<Course> courseList;
-    private DefaultListModel<Course> courseListModel;
-    private int instructorId;
+    private final String instructorId;
+    private final CourseService courseService;
+    private final DefaultListModel<Course> listModel;
+    private final JList<Course> courseJList;
+    private final UserService userService;
 
-    public InstructorDashboardFrame(int instructorId) {
-        this.instructorId = instructorId;
-        this.courseService = new CourseService(JsonDatabaseManager.getInstance());
+    public InstructorDashboardFrame(String instructorId, UserService userService) {
+    this.instructorId = instructorId;
+    this.userService = userService;
+    this.courseService = new CourseService(userService.db);
+    
 
-        setTitle("Instructor Dashboard");
-        setSize(600, 400);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(700, 450);
         setLocationRelativeTo(null);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        listModel = new DefaultListModel<>();
+        courseJList = new JList<>(listModel);
+        courseJList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
         initUI();
         loadCourses();
-
         setVisible(true);
     }
 
     private void initUI() {
-        courseListModel = new DefaultListModel<>();
-        courseList = new JList<>(courseListModel);
-        courseList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-
-        JButton createBtn = new JButton("Create Course");
-        JButton editBtn = new JButton("Edit Course");
-        JButton lessonBtn = new JButton("Manage Lessons");
-
-        createBtn.addActionListener(e -> new CreateCourseFrame(instructorId, this));
-        editBtn.addActionListener(e -> {
-            Course selected = courseList.getSelectedValue();
-            if (selected == null) {
-                JOptionPane.showMessageDialog(this, "Select a course to edit.");
-                return;
-            }
-            new EditCourseFrame(selected, this);
+        // Top bar with Logout
+        JButton logoutBtn = new JButton("Logout");
+        logoutBtn.addActionListener(e -> {
+            new LoginFrame(new UserService(JsonDatabaseManager.getInstance())).setVisible(true);
+            dispose();
         });
-        lessonBtn.addActionListener(e -> {
-            Course selected = courseList.getSelectedValue();
-            if (selected == null) {
-                JOptionPane.showMessageDialog(this, "Select a course to manage lessons.");
-                return;
+        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        topBar.add(logoutBtn);
+        add(topBar, BorderLayout.NORTH);
+
+        // Buttons
+        JButton create = new JButton("Create");
+        JButton edit = new JButton("Edit");
+        JButton del = new JButton("Delete");
+        JButton lessons = new JButton("Manage Lessons");
+
+        create.addActionListener(e -> new CreateCourseFrame(instructorId, this));
+        edit.addActionListener(e -> {
+            Course c = courseJList.getSelectedValue();
+            if (c == null) { JOptionPane.showMessageDialog(this, "Select a course."); return; }
+            new EditCourseFrame(c, this);
+        });
+        del.addActionListener(e -> {
+            Course c = courseJList.getSelectedValue();
+            if (c == null) { JOptionPane.showMessageDialog(this, "Select a course."); return; }
+            if (JOptionPane.showConfirmDialog(this, "Delete " + c.getTitle() + "?", "Confirm", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+                boolean ok = courseService.deleteCourse(c.getCourseId());
+                if (ok) { JOptionPane.showMessageDialog(this, "Deleted."); loadCourses(); }
+                else JOptionPane.showMessageDialog(this, "Delete failed.");
             }
-            new LessonManagementFrame(selected);
+        });
+        lessons.addActionListener(e -> {
+            Course c = courseJList.getSelectedValue();
+            if (c == null) { JOptionPane.showMessageDialog(this, "Select a course."); return; }
+            new LessonManagementFrame(c);
         });
 
-        JPanel buttonPanel = new JPanel();
-        buttonPanel.add(createBtn);
-        buttonPanel.add(editBtn);
-        buttonPanel.add(lessonBtn);
+        JPanel bottom = new JPanel();
+        bottom.add(create);
+        bottom.add(edit);
+        bottom.add(del);
+        bottom.add(lessons);
 
-        add(new JScrollPane(courseList), "Center");
-        add(buttonPanel, "South");
+        add(new JScrollPane(courseJList), BorderLayout.CENTER);
+        add(bottom, BorderLayout.SOUTH);
     }
 
     public void loadCourses() {
-        courseListModel.clear();
+        listModel.clear();
         List<Course> courses = courseService.getCoursesByInstructor(instructorId);
-        for (Course c : courses) {
-            courseListModel.addElement(c);
-        }
+        for (Course c : courses) listModel.addElement(c);
     }
 }
