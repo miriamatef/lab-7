@@ -1,16 +1,12 @@
-/*
  * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
  * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
  */
-package ui;
+package lab7.isa;
 
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
-import model.Course;
-import model.Lesson;
-import service.CourseService;
 
 /**
  *
@@ -18,76 +14,49 @@ import service.CourseService;
  */
 
 public class AddLessonFrame extends JFrame {
-    private JTextField titleField;
-    private JTextArea contentArea;
-    private JTextField resourcesField;
+    private final Course course;
+    private final LessonService svc;
+    private final LessonManagementFrame parent;
+    private JTextField tfTitle;
+    private JTextArea taContent;
+    private JTextField tfResources;
 
-    private Course course;
-    private CourseService courseService;
-    private LessonManagementFrame parent;
-
-    public AddLessonFrame(Course course, CourseService courseService, LessonManagementFrame parent) {
-        this.course = course;
-        this.courseService = courseService;
-        this.parent = parent;
-
-        setTitle("Add Lesson");
-        setSize(400, 350);
-        setLocationRelativeTo(null);
-        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-
-        initUI();
-        setVisible(true);
+    public AddLessonFrame(Course course, LessonService svc, LessonManagementFrame parent) {
+        super("Add Lesson - " + course.getTitle());
+        this.course = course; this.svc = svc; this.parent = parent;
+        init();
     }
 
-    private void initUI() {
-        JPanel form = new JPanel(new GridLayout(6, 1, 10, 10));
+    private void init() {
+        setSize(500,500); setLocationRelativeTo(null); setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        tfTitle = new JTextField(30);
+        taContent = new JTextArea(6,30);
+        tfResources = new JTextField(30);
+        JButton btn = new JButton("Add");
 
-        titleField = new JTextField();
-        contentArea = new JTextArea(5, 20);
-        contentArea.setLineWrap(true);
-        contentArea.setWrapStyleWord(true);
-        resourcesField = new JTextField();
-
-        form.add(new JLabel("Lesson Title:"));
-        form.add(titleField);
-        form.add(new JLabel("Content:"));
-        form.add(new JScrollPane(contentArea));
-        form.add(new JLabel("Resources (comma separated):"));
-        form.add(resourcesField);
-
-        JButton addBtn = new JButton("Add");
-        addBtn.addActionListener(e -> addLesson());
-
-        add(form, BorderLayout.CENTER);
-        add(addBtn, BorderLayout.SOUTH);
-    }
-
-    private void addLesson() {
-        String title = titleField.getText().trim();
-        String content = contentArea.getText().trim();
-        String resourcesText = resourcesField.getText().trim();
-
-        if (title.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Lesson title cannot be empty");
-            return;
-        }
-
-        List<String> resources = new ArrayList<>();
-        if (!resourcesText.isEmpty()) {
-            for (String r : resourcesText.split(",")) {
-                resources.add(r.trim());
+        btn.addActionListener(e -> {
+            String t = tfTitle.getText().trim();
+            if (t.isEmpty()) { JOptionPane.showMessageDialog(this,"Title required"); return; }
+            String content = taContent.getText().trim();
+            List<String> res = new ArrayList<>();
+            if (!tfResources.getText().trim().isEmpty()) {
+                String[] parts = tfResources.getText().split(",");
+                for (String s : parts) res.add(s.trim());
             }
-        }
+            Lesson l = svc.addLesson(course.getCourseId(), t, content, res);
+            if (l != null) {
+                JOptionPane.showMessageDialog(this,"Added");
+                parent.refreshList(); dispose();
+            } else JOptionPane.showMessageDialog(this,"Add failed (maybe duplicate title)");
+        });
 
-        Lesson lesson = courseService.addLesson(course.getCourseId(), title, content, resources);
-        if (lesson != null) {
-            course.getLessons().add(lesson);
-            parent.refreshList();
-            JOptionPane.showMessageDialog(this, "Lesson added!");
-            dispose();
-        } else {
-            JOptionPane.showMessageDialog(this, "Error adding lesson");
-        }
+        JPanel p = new JPanel(new BorderLayout());
+        JPanel top = new JPanel(); top.add(new JLabel("Title:")); top.add(tfTitle);
+        p.add(top, BorderLayout.NORTH);
+        p.add(new JScrollPane(taContent), BorderLayout.CENTER);
+        JPanel bot = new JPanel(); bot.add(new JLabel("Resources (comma sep):")); bot.add(tfResources); bot.add(btn);
+        p.add(bot, BorderLayout.SOUTH);
+        add(p);
+        setVisible(true);
     }
 }
