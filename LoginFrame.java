@@ -1,7 +1,8 @@
-package Lab6;
+package lab7.isa;
 
 import javax.swing.*;
 import java.awt.*;
+import org.json.JSONObject;
 
 public class LoginFrame extends JFrame {
     private final UserService userService;
@@ -9,70 +10,77 @@ public class LoginFrame extends JFrame {
     public LoginFrame(UserService userService) {
         super("SkillForge - Login");
         this.userService = userService;
-        initUI();
+        init();
+        checkLoggedInUser(); // auto-login if someone is already logged in
     }
 
-    private void initUI() {
+    private void init() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(380, 220);
         setLocationRelativeTo(null);
 
         JPanel panel = new JPanel(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
+        c.insets = new Insets(6, 6, 6, 6);
+        c.fill = GridBagConstraints.HORIZONTAL;
 
-        JLabel lblEmail = new JLabel("Email:");
-        JTextField tfEmail = new JTextField(18);
-        JLabel lblPass = new JLabel("Password:");
-        JPasswordField pfPass = new JPasswordField(18);
+        JLabel le = new JLabel("Email:");
+        JTextField te = new JTextField(18);
+        JLabel lp = new JLabel("Password:");
+        JPasswordField tp = new JPasswordField(18);
         JButton btnLogin = new JButton("Login");
-        JButton btnSignup = new JButton("Go to Signup");
+        JButton btnSignup = new JButton("Signup");
 
-        c.insets = new Insets(6,6,6,6);
-        c.gridx = 0; c.gridy = 0; panel.add(lblEmail, c);
-        c.gridx = 1; panel.add(tfEmail, c);
-        c.gridx = 0; c.gridy = 1; panel.add(lblPass, c);
-        c.gridx = 1; panel.add(pfPass, c);
+        // Layout components
+        c.gridx = 0; c.gridy = 0; panel.add(le, c);
+        c.gridx = 1; panel.add(te, c);
+        c.gridx = 0; c.gridy = 1; panel.add(lp, c);
+        c.gridx = 1; panel.add(tp, c);
         c.gridx = 1; c.gridy = 2; panel.add(btnLogin, c);
         c.gridx = 1; c.gridy = 3; panel.add(btnSignup, c);
 
-        // Add Enter key support - pressing Enter in password field triggers login
-        pfPass.addActionListener(e -> btnLogin.doClick());
-
+        // Login action using email
         btnLogin.addActionListener(e -> {
-            try {
-                String email = tfEmail.getText().trim();
-                String pass = new String(pfPass.getPassword());
-                if (email.isEmpty() || pass.isEmpty()) {
-                    JOptionPane.showMessageDialog(this, "Please fill all fields", "Validation", JOptionPane.WARNING_MESSAGE);
-                    return;
-                }
-
-                User user = userService.login(email, pass);
-                JOptionPane.showMessageDialog(this, "Login successful. Role: " + user.getRole()
-                        + "\nUsername: " + user.getUsername(), "Welcome", JOptionPane.INFORMATION_MESSAGE);
-
-                // TODO: When dashboards are ready, replace this with:
-                // if ("student".equals(user.getRole())) {
-                //     new StudentDashboardFrame((Student) user, userService).setVisible(true);
-                // } else {
-                //     new InstructorDashboardFrame((Instructor) user, userService).setVisible(true);
-                // }
-                
-                // For now, just close the login window after successful login
-                dispose();
-
-            } catch (IllegalArgumentException ex) {
-                JOptionPane.showMessageDialog(this, "Login failed: " + ex.getMessage(), "Login Error", JOptionPane.ERROR_MESSAGE);
-                pfPass.setText(""); // Clear password field for security
+            String email = te.getText().trim();
+            String password = new String(tp.getPassword());
+            JSONObject user = userService.loginByEmail(email, password); // <-- updated
+            if (user == null) {
+                JOptionPane.showMessageDialog(this, "Invalid email or password",
+                        "Login Failed", JOptionPane.ERROR_MESSAGE);
+                return;
             }
+            openDashboard(user);
         });
 
+        // Signup action
         btnSignup.addActionListener(e -> {
-            SignupFrame sf = new SignupFrame(userService);
-            sf.setVisible(true);
-            dispose(); // Close login window when going to signup
+            new SignupFrame(userService).setVisible(true);
+            dispose();
         });
 
         add(panel);
+    }
+
+    // Open appropriate dashboard
+    private void openDashboard(JSONObject user) {
+        String role = user.optString("role", "");
+        String uid = user.optString("id", "");
+        SwingUtilities.invokeLater(() -> {
+            if ("instructor".equalsIgnoreCase(role)) {
+                new InstructorDashboardFrame(uid, userService).setVisible(true);
+
+            } else {
+                new StudentDashboardFrame(uid).setVisible(true);
+            }
+        });
+        dispose();
+    }
+
+    // Auto-login if a user is already logged in
+    private void checkLoggedInUser() {
+        JSONObject user = userService.getLoggedInUser();
+        if (user != null) {
+            openDashboard(user);
+        }
     }
 }
