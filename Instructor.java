@@ -1,26 +1,28 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
-package Lab6;
-import com.google.gson.annotations.SerializedName;
-import java.util.ArrayList;
-import java.util.List;
+public synchronized boolean signup(String role, String username, String email, String password) {
+    if (username == null || username.isBlank() ||
+        email == null || email.isBlank() ||
+        password == null || password.isBlank() ||
+        role == null || role.isBlank()) return false;
 
-public class Instructor extends User {
-    @SerializedName("createdCourses")
-    private List<String> createdCourses;
+    if (username.matches("\\d+")) return false;
 
-    public Instructor(String userId, String username, String email, String passwordHash) {
-        super(userId, username, email, passwordHash, "instructor");
-        this.createdCourses = new ArrayList<>();
+    JSONArray users = db.readUsers();
+
+    for (Object o : users) {
+        JSONObject u = (JSONObject) o;
+        if (u.getString("username").equalsIgnoreCase(username) ||
+            u.getString("email").equalsIgnoreCase(email)) return false;
     }
 
-    public List<String> getCreatedCourses() { return createdCourses; }
+    JSONObject newUser = new JSONObject();
+    newUser.put("id", db.generateUserId());
+    newUser.put("role", role);
+    newUser.put("username", username);
+    newUser.put("email", email);
+    newUser.put("password", password);
+    newUser.put("loggedIn", false);
 
-    public void addCourse(String courseId) {
-        if (!createdCourses.contains(courseId)) {
-            createdCourses.add(courseId);
-        }
-    }
+    users.put(newUser);
+    db.writeUsers(users); // persist immediately
+    return true;
 }
