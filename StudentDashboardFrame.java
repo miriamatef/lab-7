@@ -1,22 +1,13 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
-package ui;
-
-import managers.StudentManager;
-import models.Course;
-import models.Lesson;
-import storage.JsonDatabaseManager;
+package lab7.isa;
 
 import javax.swing.*;
 import java.awt.*;
 import java.util.List;
 
 public class StudentDashboardFrame extends JFrame {
-
-    private final StudentManager studentManager;
     private final String studentId;
+    private final StudentManager studentManager;
+    private final UserService userService;
 
     private JList<String> coursesList;
     private DefaultListModel<String> coursesListModel;
@@ -25,25 +16,45 @@ public class StudentDashboardFrame extends JFrame {
     private JTextArea lessonContentArea;
     private JButton enrollButton;
     private JButton markCompleteButton;
+    private final LoginFrame loginFrame;
+    private JProgressBar progressBar;
+    private JLabel progressLabel;
 
-    public StudentDashboardFrame(String usersPath, String coursesPath, String studentId) {
+    private List<Course> availableCourses;
+
+    
+    public StudentDashboardFrame(String studentId, LoginFrame loginFrame) {
+        super("Student Dashboard - " + studentId);
         this.studentId = studentId;
-        JsonDatabaseManager db = new JsonDatabaseManager(usersPath, coursesPath);
-        this.studentManager = new StudentManager(db);
+        this.studentManager = new StudentManager(JsonDatabaseManager.getInstance());
+        this.userService = new UserService(JsonDatabaseManager.getInstance());
+        this.loginFrame = loginFrame;
+
+        setSize(900, 600);
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
         initUI();
         loadCourses();
-        setTitle("Student Dashboard");
-        setSize(800, 600);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocationRelativeTo(null);
+        setVisible(true);
     }
 
     private void initUI() {
-        JPanel main = new JPanel(new BorderLayout());
+    
+        JButton logoutBtn = new JButton("Logout");
+        logoutBtn.addActionListener(e -> {
+        loginFrame.setVisible(true); 
+        dispose();                  
+        });
+
+        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        topBar.add(logoutBtn);
+        add(topBar, BorderLayout.NORTH);
 
        
         coursesListModel = new DefaultListModel<>();
         coursesList = new JList<>(coursesListModel);
+        coursesList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane coursesScroll = new JScrollPane(coursesList);
         coursesScroll.setPreferredSize(new Dimension(300, 0));
 
@@ -51,111 +62,136 @@ public class StudentDashboardFrame extends JFrame {
         enrollButton.addActionListener(e -> onEnrollClicked());
 
         JPanel leftPanel = new JPanel(new BorderLayout());
+        leftPanel.add(new JLabel("Available Courses", JLabel.CENTER), BorderLayout.NORTH);
         leftPanel.add(coursesScroll, BorderLayout.CENTER);
         leftPanel.add(enrollButton, BorderLayout.SOUTH);
+        leftPanel.setPreferredSize(new Dimension(300, 0));
 
-       
+        
         lessonsListModel = new DefaultListModel<>();
         lessonsList = new JList<>(lessonsListModel);
+        lessonsList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane lessonsScroll = new JScrollPane(lessonsList);
 
         markCompleteButton = new JButton("Mark Completed");
         markCompleteButton.addActionListener(e -> onMarkCompletedClicked());
 
         JPanel centerPanel = new JPanel(new BorderLayout());
+        centerPanel.add(new JLabel("Lessons", JLabel.CENTER), BorderLayout.NORTH);
         centerPanel.add(lessonsScroll, BorderLayout.CENTER);
         centerPanel.add(markCompleteButton, BorderLayout.SOUTH);
 
        
         lessonContentArea = new JTextArea();
         lessonContentArea.setEditable(false);
+        lessonContentArea.setLineWrap(true);
+        lessonContentArea.setWrapStyleWord(true);
         JScrollPane contentScroll = new JScrollPane(lessonContentArea);
+        contentScroll.setPreferredSize(new Dimension(350, 0));
 
-        main.add(leftPanel, BorderLayout.WEST);
-        main.add(centerPanel, BorderLayout.CENTER);
-        main.add(contentScroll, BorderLayout.EAST);
+        JPanel rightPanel = new JPanel(new BorderLayout());
+        rightPanel.add(new JLabel("Lesson Content", JLabel.CENTER), BorderLayout.NORTH);
+        rightPanel.add(contentScroll, BorderLayout.CENTER);
 
-        add(main);
-    }
+     
+        progressBar = new JProgressBar(0, 100);
+        progressBar.setStringPainted(true);
+        progressLabel = new JLabel("Progress: 0% (0/0 lessons)", JLabel.CENTER);
 
-    private void loadCourses() {
-        final List<Course> courses = studentManager.browseCourses();
-        coursesListModel.clear();
-        for (Course c : courses) {
-            coursesListModel.addElement(c.getCourseId() + " — " + c.getTitle());
-        }
+        JPanel progressPanel = new JPanel(new BorderLayout());
+        progressPanel.add(progressLabel, BorderLayout.NORTH);
+        progressPanel.add(progressBar, BorderLayout.CENTER);
 
+       
+        add(leftPanel, BorderLayout.WEST);
+        add(centerPanel, BorderLayout.CENTER);
+        add(rightPanel, BorderLayout.EAST);
+        add(progressPanel, BorderLayout.SOUTH);
+
+       
         coursesList.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) return;
-            int selectedIndex = coursesList.getSelectedIndex();
-            onCourseSelected(selectedIndex, courses);
+            if (e.getValueIsAdjusting()) return;
+            int idx = coursesList.getSelectedIndex();
+            if (idx < 0 || availableCourses == null) return;
+            Course c = availableCourses.get(idx);
+            lessonsListModel.clear();
+            for (Lesson l : c.getLessons()) {
+                lessonsListModel.addElement(l.getLessonId() + " — " + l.getTitle());
+            }
+            lessonContentArea.setText("");
+            updateProgress(c); 
         });
 
         lessonsList.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) return;
-            int courseIdx = coursesList.getSelectedIndex();
-            int lessonIdx = lessonsList.getSelectedIndex();
-            if (courseIdx < 0 || lessonIdx < 0) return;
-            Course c = courses.get(courseIdx);
-            Lesson l = c.getLessons().get(lessonIdx);
+            if (e.getValueIsAdjusting()) return;
+            int cidx = coursesList.getSelectedIndex();
+            int lidx = lessonsList.getSelectedIndex();
+            if (cidx < 0 || lidx < 0 || availableCourses == null) return;
+            Lesson l = availableCourses.get(cidx).getLessons().get(lidx);
             lessonContentArea.setText(l.getContent());
         });
     }
 
-    private void onCourseSelected(int courseIdx, List<Course> courses) {
-        if (courseIdx < 0) return;
-        Course c = courses.get(courseIdx);
-        lessonsListModel.clear();
-        for (Lesson l : c.getLessons()) {
-            lessonsListModel.addElement(l.getLessonId() + " — " + l.getTitle());
-        }
-    }
-
     private void onEnrollClicked() {
         int idx = coursesList.getSelectedIndex();
-        if (idx < 0) {
+        if (idx < 0 || availableCourses == null) {
             JOptionPane.showMessageDialog(this, "Select a course first");
             return;
         }
-
-        String entry = coursesListModel.get(idx);
-        String[] parts = entry.split(" — ", 2);
-        if (parts.length < 1) {
-            JOptionPane.showMessageDialog(this, "Invalid course entry");
-            return;
-        }
-
-        String courseId = parts[0];
+        int courseId = availableCourses.get(idx).getCourseId();
         boolean ok = studentManager.enroll(studentId, courseId);
-        JOptionPane.showMessageDialog(this, ok ? "Enrolled successfully" : "Enrollment failed");
-
-        loadCourses(); 
+        JOptionPane.showMessageDialog(this, ok ? "Enrolled successfully" : "Enroll failed (maybe already enrolled)");
+        loadCourses();
     }
 
     private void onMarkCompletedClicked() {
-        int courseIdx = coursesList.getSelectedIndex();
-        int lessonIdx = lessonsList.getSelectedIndex();
-        if (courseIdx < 0 || lessonIdx < 0) {
+        int cidx = coursesList.getSelectedIndex();
+        int lidx = lessonsList.getSelectedIndex();
+        if (cidx < 0 || lidx < 0 || availableCourses == null) {
             JOptionPane.showMessageDialog(this, "Select course and lesson first");
             return;
         }
+        int courseId = availableCourses.get(cidx).getCourseId();
+        int lessonId = availableCourses.get(cidx).getLessons().get(lidx).getLessonId();
 
-        String courseEntry = coursesListModel.get(courseIdx);
-        String lessonEntry = lessonsListModel.get(lessonIdx);
-
-        String[] courseParts = courseEntry.split(" — ", 2);
-        String[] lessonParts = lessonEntry.split(" — ", 2);
-        if (courseParts.length < 1 || lessonParts.length < 1) {
-            JOptionPane.showMessageDialog(this, "Invalid course or lesson entry");
+        List<Course> enrolled = studentManager.getEnrolledCourses(studentId);
+        boolean isEnrolled = false;
+        for (Course c : enrolled) if (c.getCourseId() == courseId) { isEnrolled = true; break; }
+        if (!isEnrolled) {
+            JOptionPane.showMessageDialog(this, "You must enroll in the course before marking lessons.");
             return;
         }
 
-        String courseId = courseParts[0];
-        String lessonId = lessonParts[0];
+        boolean markOk = studentManager.markLessonCompleted(studentId, courseId, lessonId);
+        new LessonService(JsonDatabaseManager.getInstance()).markCompleted(courseId, lessonId, studentId);
+        JOptionPane.showMessageDialog(this, "Lesson marked completed");
 
-        boolean ok = studentManager.markLessonCompleted(studentId, courseId, lessonId);
-        JOptionPane.showMessageDialog(this, ok ? "Lesson marked complete" : "Operation failed");
+        
+        Course selectedCourse = availableCourses.get(cidx);
+        updateProgress(selectedCourse);
     }
 
-    
+    private void loadCourses() {
+        availableCourses = studentManager.browseCourses();
+        coursesListModel.clear();
+        if (availableCourses != null) {
+            for (Course c : availableCourses) {
+                coursesListModel.addElement(c.getCourseId() + " — " + c.getTitle());
+            }
+        }
+        lessonsListModel.clear();
+        lessonContentArea.setText("");
+        progressBar.setValue(0);
+        progressLabel.setText("Progress: 0% (0/0 lessons)");
+    }
+
+    private void updateProgress(Course course) {
+        List<Integer> completedLessons = studentManager.getCompletedLessons(studentId, course.getCourseId());
+        int total = course.getLessons().size();
+        int done = completedLessons != null ? completedLessons.size() : 0;
+
+        int percent = total > 0 ? (done * 100 / total) : 0;
+        progressBar.setValue(percent);
+        progressLabel.setText("Progress: " + percent + "% (" + done + "/" + total + " lessons)");
+    }
 }
