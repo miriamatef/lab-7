@@ -1,98 +1,203 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
-package managers;
+package lab7.isa;
 
-import models.Course;
-import models.Student;
-import models.Lesson;
-import models.User;
-import storage.JsonDatabaseManager;
-import util.SecurityUtil;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.stream.Collectors;
+import org.json.*;
+import java.util.*;
 
 public class StudentManager {
     private final JsonDatabaseManager db;
 
-    public StudentManager(JsonDatabaseManager db) {
-        this.db = db;
+    public StudentManager(JsonDatabaseManager db) { 
+        this.db = db; 
     }
 
-   
     public List<Course> browseCourses() {
-        return db.loadCourses();
+        JSONArray arr = db.readCourses();
+        List<Course> res = new ArrayList<>();
+        for (Object o : arr) res.add(jsonToCourse((JSONObject) o));
+        return res;
     }
 
-  
     public List<Course> getEnrolledCourses(String studentId) {
-        List<User> users = db.loadUsers();
-        Optional<User> ou = users.stream().filter(u -> u.getUserId().equals(studentId)).findFirst();
-        if (ou.isEmpty() || !(ou.get() instanceof Student)) return List.of();
+        JSONArray users = db.readUsers();
+        JSONObject student = null;
+        for (Object o : users) {
+            JSONObject u = (JSONObject) o;
+            if (studentId.equals(u.optString("id", "")) && 
+                "student".equalsIgnoreCase(u.optString("role", ""))) {
+                student = u; 
+                break;
+            }
+        }
+        if (student == null) return new ArrayList<>();
+        JSONArray enrolled = student.optJSONArray("enrolledCourses");
+        if (enrolled == null) return new ArrayList<>();
 
-        Student s = (Student) ou.get();
-        List<Course> courses = db.loadCourses();
-        return courses.stream()
-                .filter(c -> s.getEnrolledCourses().contains(c.getCourseId()))
-                .collect(Collectors.toList());
+        List<Course> res = new ArrayList<>();
+        JSONArray courses = db.readCourses();
+        for (Object cobj : courses) {
+            JSONObject c = (JSONObject) cobj;
+            int cid = c.optInt("id", -1);
+            for (Object id : enrolled) {
+                if (Integer.valueOf(cid).equals(id)) res.add(jsonToCourse(c));
+            }
+        }
+        return res;
     }
 
-    
-    public List<Lesson> getLessonsForCourse(String courseId) {
-        Optional<Course> oc = db.findCourseById(courseId);
-        return oc.map(Course::getLessons).orElse(List.of());
+    public List<Lesson> getLessonsForCourse(int courseId) {
+        JSONArray courses = db.readCourses();
+        for (Object o : courses) {
+            JSONObject c = (JSONObject) o;
+            if (c.optInt("id", -1) == courseId) {
+                JSONArray la = c.optJSONArray("lessons");
+                List<Lesson> res = new ArrayList<>();
+                if (la != null) {
+                    for (Object l : la) res.add(jsonToLesson((JSONObject) l));
+                }
+                return res;
+            }
+        }
+        return new ArrayList<>();
     }
 
-    
-    public boolean enroll(String studentId, String courseId) {
-        List<User> users = db.loadUsers();
-        Optional<User> ou = users.stream().filter(u -> u.getUserId().equals(studentId)).findFirst();
-        if (ou.isEmpty() || !(ou.get() instanceof Student)) return false;
-        Student s = (Student) ou.get();
-
-        List<Course> courses = db.loadCourses();
-        Optional<Course> oc = courses.stream().filter(c -> c.getCourseId().equals(courseId)).findFirst();
-        if (oc.isEmpty()) return false;
-        Course c = oc.get();
-
-        // Update student and course
-        s.enrollCourse(courseId);
-        c.addStudent(studentId);
-
-        // Save changes
-        db.saveUsers(users);
-        db.saveCourses(courses);
-        return true;
+    public boolean enroll(String studentId, int courseId) {
+        CourseService cs = new CourseService(db);
+        return cs.enrollStudent(courseId, studentId);
     }
 
-    
-    public boolean markLessonCompleted(String studentId, String courseId, String lessonId) {
-        List<User> users = db.loadUsers();
-        Optional<User> ou = users.stream().filter(u -> u.getUserId().equals(studentId)).findFirst();
-        if (ou.isEmpty() || !(ou.get() instanceof Student)) return false;
-        Student s = (Student) ou.get();
+    public boolean markLessonCompleted(String studentId, int courseId, int lessonId) {
+    JSONArray users = db.readUsers();
+    boolean updated = false;
 
-        var prog = s.getProgressForCourse(courseId);
-        if (prog == null) return false; // not enrolled
+    for (int i = 0; i < users.length(); i++) {
+        JSONObject user = users.getJSONObject(i);
+        if (studentId.equals(user.optString("id", "")) &&
+            "student".equalsIgnoreCase(user.optString("role", ""))) {
 
-        prog.markLessonCompleted(lessonId);
+            JSONArray completedArr = user.optJSONArray("completedLessons");
+            if (completedArr == null) {
+                completedArr = new JSONArray();
+                user.put("completedLessons", completedArr);
+            }
 
-        db.saveUsers(users);
-        return true;
+            JSONObject courseEntry = null;
+            for (Object obj : completedArr) {
+                JSONObject entry = (JSONObject) obj;
+                if (entry.optInt("courseId", -1) == courseId) {
+                    courseEntry = entry;
+                    break;
+                }
+            }
+
+            if (courseEntry == null) {
+                courseEntry = new JSONObject();
+                courseEntry.put("courseId", courseId);
+                courseEntry.put("lessons", new JSONArray());
+                completedArr.put(courseEntry);
+            }
+
+            JSONArray lessons = courseEntry.optJSONArray("lessons");
+            if (lessons == null) {
+                lessons = new JSONArray();
+                courseEntry.put("lessons", lessons);
+            }
+
+            boolean alreadyDone = false;
+            for (Object lid : lessons) {
+                if (Integer.valueOf(lessonId).equals(lid)) {
+                    alreadyDone = true;
+                    break;
+                }
+            }
+
+            if (!alreadyDone) {
+                lessons.put(lessonId);
+                updated = true;
+            }
+
+            break;
+        }
     }
 
-    
-    public Student registerStudent(String username, String email, String password) {
-        List<User> users = db.loadUsers();
-        String uid = UUID.randomUUID().toString();
-        String hash = SecurityUtil.sha256(password);
-        Student s = new Student(uid, username, email, hash);
-        users.add(s);
-        db.saveUsers(users);
-        return s;
+    if (updated) {
+        db.writeUsers(users); // Save changes to database
+    }
+
+    return updated;
+}
+
+
+    public boolean registerStudent(String username, String email, String password) {
+        UserService us = new UserService(db);
+        return us.signup("student", username, email, password);
+    }
+
+    // helpers
+    private Course jsonToCourse(JSONObject json) {
+        int id = json.optInt("id", -1);
+        String title = json.optString("title", "");
+        String desc = json.optString("description", "");
+        String instr = json.optString("instructorId", "");
+        
+        List<Lesson> lessons = new ArrayList<>();
+        JSONArray la = json.optJSONArray("lessons");
+        if (la != null) {
+            for (Object o : la) lessons.add(jsonToLesson((JSONObject) o));
+        }
+
+        List<String> students = new ArrayList<>();
+        JSONArray sa = json.optJSONArray("students");
+        if (sa != null) {
+            for (Object s : sa) students.add(String.valueOf(s));
+        }
+
+        return new Course(id, title, desc, instr, lessons, students);
+    }
+
+    private Lesson jsonToLesson(JSONObject json) {
+        int id = json.optInt("id", -1);
+        String title = json.optString("title", "");
+        String content = json.optString("content", "");
+        
+        List<String> resources = new ArrayList<>();
+        JSONArray ra = json.optJSONArray("resources");
+        if (ra != null) {
+            for (Object r : ra) resources.add(String.valueOf(r));
+        }
+
+        return new Lesson(id, title, content, resources);
+    }
+
+    public List<Integer> getCompletedLessons(String studentId, int courseId) {
+        JSONArray users = db.readUsers();
+        JSONObject student = null;
+        for (Object o : users) {
+            JSONObject u = (JSONObject) o;
+            if (studentId.equals(u.optString("id", "")) && 
+                "student".equalsIgnoreCase(u.optString("role", ""))) {
+                student = u; 
+                break;
+            }
+        }
+        if (student == null) return new ArrayList<>();
+
+        // Each student JSON should have a "completedLessons" array like:
+        // { "courseId": 1, "lessons": [101, 102] }
+        JSONArray completedArr = student.optJSONArray("completedLessons");
+        if (completedArr == null) return new ArrayList<>();
+
+        List<Integer> res = new ArrayList<>();
+        for (Object obj : completedArr) {
+            JSONObject comp = (JSONObject) obj;
+            if (comp.optInt("courseId", -1) == courseId) {
+                JSONArray lessons = comp.optJSONArray("lessons");
+                if (lessons != null) {
+                    for (Object lid : lessons) {
+                        res.add(Integer.valueOf(String.valueOf(lid)));
+                    }
+                }
+            }
+        }
+        return res;
     }
 }
