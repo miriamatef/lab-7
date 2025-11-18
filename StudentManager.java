@@ -120,7 +120,7 @@ public class StudentManager {
     }
 
     if (updated) {
-        db.writeUsers(users); // Save changes to database
+        db.writeUsers(users);
     }
 
     return updated;
@@ -132,7 +132,7 @@ public class StudentManager {
         return us.signup("student", username, email, password);
     }
 
-    // helpers
+   
     private Course jsonToCourse(JSONObject json) {
         int id = json.optInt("id", -1);
         String title = json.optString("title", "");
@@ -181,8 +181,7 @@ public class StudentManager {
         }
         if (student == null) return new ArrayList<>();
 
-        // Each student JSON should have a "completedLessons" array like:
-        // { "courseId": 1, "lessons": [101, 102] }
+       
         JSONArray completedArr = student.optJSONArray("completedLessons");
         if (completedArr == null) return new ArrayList<>();
 
@@ -201,3 +200,4 @@ public class StudentManager {
         return res;
     }
 }
+
