@@ -10,7 +10,7 @@ import java.util.List;
 public class Student {
     private JSONObject studentData;
     
-    // CHANGED - Constructor takes JSONObject (matches database pattern)
+  
     public Student(JSONObject studentData) {
         this.studentData = studentData;
         // Ensure required arrays exist
@@ -22,7 +22,6 @@ public class Student {
         }
     }
     
-    // CHANGED - Create new student from basic info
     public Student(String userId, String username, String email, String passwordHash) {
         this.studentData = new JSONObject();
         studentData.put("id", userId);
@@ -34,7 +33,7 @@ public class Student {
         studentData.put("progress", new JSONArray());
     }
     
-    // CHANGED - Default constructor
+
     public Student() {
         this.studentData = new JSONObject();
         studentData.put("role", "student");
@@ -42,12 +41,12 @@ public class Student {
         studentData.put("progress", new JSONArray());
     }
     
-    // CHANGED - Get the underlying JSONObject (for saving to database)
+
     public JSONObject toJSON() {
         return studentData;
     }
     
-    // Getters - CHANGED to read from JSONObject
+
     public String getUserId() {
         return studentData.optString("id", "");
     }
@@ -67,8 +66,7 @@ public class Student {
     public String getRole() {
         return studentData.optString("role", "student");
     }
-    
-    // CHANGED - Returns List<Integer> to match course IDs in database
+
     public List<Integer> getEnrolledCourses() {
         List<Integer> courses = new ArrayList<>();
         JSONArray coursesArray = studentData.optJSONArray("enrolledCourses");
@@ -80,7 +78,7 @@ public class Student {
                     try {
                         courses.add(Integer.parseInt((String) obj));
                     } catch (NumberFormatException e) {
-                        // Skip invalid entries
+                        
                     }
                 }
             }
@@ -88,7 +86,7 @@ public class Student {
         return courses;
     }
     
-    // CHANGED - Returns List<Progress> objects from JSON
+
     public List<Progress> getProgress() {
         List<Progress> progressList = new ArrayList<>();
         JSONArray progressArray = studentData.optJSONArray("progress");
@@ -102,7 +100,7 @@ public class Student {
         return progressList;
     }
     
-    // Setters - CHANGED to write to JSONObject
+
     public void setUsername(String username) {
         studentData.put("username", username);
     }
@@ -115,7 +113,7 @@ public class Student {
         studentData.put("password", passwordHash);
     }
     
-    // CHANGED - Accepts List<Integer> to match course IDs
+
     public void setEnrolledCourses(List<Integer> enrolledCourses) {
         JSONArray coursesArray = new JSONArray();
         for (Integer courseId : enrolledCourses) {
@@ -124,7 +122,7 @@ public class Student {
         studentData.put("enrolledCourses", coursesArray);
     }
     
-    // CHANGED - Accepts List<Progress> objects
+
     public void setProgress(List<Progress> progress) {
         JSONArray progressArray = new JSONArray();
         for (Progress p : progress) {
@@ -133,7 +131,7 @@ public class Student {
         studentData.put("progress", progressArray);
     }
     
-    // CHANGED - Accepts int courseId to match database
+
     public void enrollCourse(int courseId) {
         JSONArray coursesArray = studentData.optJSONArray("enrolledCourses");
         if (coursesArray == null) {
@@ -141,24 +139,23 @@ public class Student {
             studentData.put("enrolledCourses", coursesArray);
         }
         
-        // Check if already enrolled
+
         for (Object obj : coursesArray) {
             if (obj instanceof Integer && (Integer) obj == courseId) {
                 return; // Already enrolled
             }
         }
         
-        // Add to enrolled courses
+
         coursesArray.put(courseId);
         
-        // Create progress entry
         JSONArray progressArray = studentData.optJSONArray("progress");
         if (progressArray == null) {
             progressArray = new JSONArray();
             studentData.put("progress", progressArray);
         }
         
-        // Check if progress already exists
+
         boolean progressExists = false;
         for (Object obj : progressArray) {
             if (obj instanceof JSONObject) {
@@ -176,7 +173,7 @@ public class Student {
         }
     }
     
-    // CHANGED - Accepts int courseId to match database
+
     public Progress getProgressForCourse(int courseId) {
         JSONArray progressArray = studentData.optJSONArray("progress");
         if (progressArray == null) return null;
@@ -192,9 +189,9 @@ public class Student {
         return null;
     }
     
-    // ADDED - Unenroll from a course
+
     public void unenrollCourse(int courseId) {
-        // Remove from enrolled courses
+
         JSONArray coursesArray = studentData.optJSONArray("enrolledCourses");
         if (coursesArray != null) {
             JSONArray newCourses = new JSONArray();
@@ -206,7 +203,7 @@ public class Student {
             studentData.put("enrolledCourses", newCourses);
         }
         
-        // Remove progress for this course
+
         JSONArray progressArray = studentData.optJSONArray("progress");
         if (progressArray != null) {
             JSONArray newProgress = new JSONArray();
@@ -222,7 +219,7 @@ public class Student {
         }
     }
     
-    // ADDED - Check if enrolled in a course
+
     public boolean isEnrolledIn(int courseId) {
         List<Integer> enrolled = getEnrolledCourses();
         return enrolled.contains(courseId);
