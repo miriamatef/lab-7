@@ -23,6 +23,7 @@ public synchronized boolean signup(String role, String username, String email, S
     newUser.put("loggedIn", false);
 
     users.put(newUser);
-    db.writeUsers(users); // persist immediately
+    db.writeUsers(users); 
     return true;
 }
+
